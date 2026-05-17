@@ -6,6 +6,12 @@ import {
   CHEONGAN_OHANG,
   JIJI_OHANG,
   JIJI_INTERNAL_STEM,
+  TWELVE_UNSEONG,
+  UNSEONG_NAMES,
+  getYeokma,
+  getDohwa,
+  getCheoneul,
+  getHwagae,
 } from './constants';
 import { Lunar } from 'lunar-javascript';
 
@@ -16,6 +22,16 @@ export interface SajuPillar {
   stemOhang: string; // 천간 오행
   branchOhang: string; // 지지 오행
   sibseong: string;  // 십성 (일간 기준)
+  internalStems?: { stem: string; strength: string }[]; // 지장간
+  unseong?: string;  // 12운성
+  unseongMeaning?: string;
+}
+
+export interface SinsalResult {
+  name: string;
+  hanja: string;
+  meaning: string;
+  branches: string[];
 }
 
 export interface SajuResult {
@@ -30,6 +46,7 @@ export interface SajuResult {
   name: string;
   isLunar: boolean;
   lunarDate?: { year: number; month: number; day: number };
+  sinsal: SinsalResult[];
 }
 
 // 60갑자 인덱스로부터 한자 반환
@@ -194,25 +211,82 @@ export function calculateSaju(
   const dayPillar = getDayPillar(calcYear, calcMonth, calcDay);
   const hourPillar = getHourPillar(dayPillar.stem, hour);
 
-  const createPillar = (
-    p: { stem: string; branch: string; index: number },
-    dayMaster: string
-  ): SajuPillar => ({
-    stem: p.stem,
-    branch: p.branch,
-    hanja: getGabjaHanja(p.index),
-    stemOhang: CHEONGAN_OHANG[p.stem] || '',
-    branchOhang: JIJI_OHANG[p.branch] || '',
-    sibseong: getSibseong(dayMaster, p.stem),
-  });
-
   const dayMaster = dayPillar.stem;
+  const unseongOrder = TWELVE_UNSEONG[dayMaster] || [];
+
+  const createPillar = (
+    p: { stem: string; branch: string; index: number }
+  ): SajuPillar => {
+    const unseongIdx = unseongOrder.indexOf(p.branch);
+    const unseongName = unseongIdx >= 0 ? UNSEONG_NAMES[unseongIdx] : '';
+
+    return {
+      stem: p.stem,
+      branch: p.branch,
+      hanja: getGabjaHanja(p.index),
+      stemOhang: CHEONGAN_OHANG[p.stem] || '',
+      branchOhang: JIJI_OHANG[p.branch] || '',
+      sibseong: getSibseong(dayMaster, p.stem),
+      internalStems: JIJI_INTERNAL_STEM[p.branch] || [],
+      unseong: unseongName,
+      unseongMeaning: unseongName,
+    };
+  };
+
+  // 신살 계산
+  const sinsal: SinsalResult[] = [];
+  const allBranches = [yearPillar.branch, monthPillar.branch, dayPillar.branch, hourPillar.branch];
+
+  // 역마
+  const yeokmaBranches = allBranches.filter(b => getYeokma(b));
+  if (yeokmaBranches.length > 0) {
+    sinsal.push({
+      name: '역마',
+      hanja: '驛馬',
+      meaning: '이동, 변화, 활동의 기운. 해외 출장, 이사, 여행이 많거나 변화가 많은 직업에 종사할 가능성.',
+      branches: yeokmaBranches,
+    });
+  }
+
+  // 도화
+  const dohwaBranches = allBranches.filter(b => getDohwa(b));
+  if (dohwaBranches.length > 0) {
+    sinsal.push({
+      name: '도화',
+      hanja: '桃花',
+      meaning: '매력, 인기, 이성운의 기운. 예술적 재능, 대인관계 능력, 연애운과 관련.',
+      branches: dohwaBranches,
+    });
+  }
+
+  // 천을귀인
+  const cheoneulTargets = getCheoneul(dayMaster);
+  const cheoneulBranches = allBranches.filter(b => cheoneulTargets.includes(b));
+  if (cheoneulBranches.length > 0) {
+    sinsal.push({
+      name: '천을귀인',
+      hanja: '天乙貴人',
+      meaning: '도움, 귀인의 기운. 어려울 때 도움을 받거나 귀인을 만날 가능성이 높음.',
+      branches: cheoneulBranches,
+    });
+  }
+
+  // 화개
+  const hwagaeBranches = allBranches.filter(b => getHwagae(b));
+  if (hwagaeBranches.length > 0) {
+    sinsal.push({
+      name: '화개',
+      hanja: '華蓋',
+      meaning: '예술, 학문, 종교의 기운. 창의력, 영적 관심, 고독을 즐기는 성향과 관련.',
+      branches: hwagaeBranches,
+    });
+  }
 
   return {
-    yearPillar: createPillar(yearPillar, dayMaster),
-    monthPillar: createPillar(monthPillar, dayMaster),
-    dayPillar: createPillar(dayPillar, dayMaster),
-    hourPillar: createPillar(hourPillar, dayMaster),
+    yearPillar: createPillar(yearPillar),
+    monthPillar: createPillar(monthPillar),
+    dayPillar: createPillar(dayPillar),
+    hourPillar: createPillar(hourPillar),
     dayMaster,
     dayMasterOhang: CHEONGAN_OHANG[dayMaster] || '',
     gender,
@@ -220,6 +294,7 @@ export function calculateSaju(
     name,
     isLunar,
     lunarDate,
+    sinsal,
   };
 }
 
@@ -235,8 +310,8 @@ export function getOhangDistribution(result: SajuResult): Record<string, number>
     
     // 지지 내 천간 (장생십이운)
     const internalStems = JIJI_INTERNAL_STEM[p.branch] || [];
-    for (const stem of internalStems) {
-      const oh = CHEONGAN_OHANG[stem];
+    for (const item of internalStems) {
+      const oh = CHEONGAN_OHANG[item.stem];
       if (oh) distribution[oh] = (distribution[oh] || 0) + 0.5;
     }
   }

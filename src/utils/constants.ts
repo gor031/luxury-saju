@@ -32,21 +32,110 @@ export const JIJI_OHANG: Record<string, string> = {
   '신': '금', '유': '금', '술': '토', '해': '수',
 };
 
-// 지지에 포함된 천간 (장생십이운)
-export const JIJI_INTERNAL_STEM: Record<string, string[]> = {
-  '자': ['임'],
-  '축': ['계', '신', '기'],
-  '인': ['갑', '병', '무'],
-  '묘': ['을'],
-  '진': ['을', '무', '계'],
-  '사': ['병', '경', '무'],
-  '오': ['정', '기'],
-  '미': ['을', '정', '기'],
-  '신': ['경', '임', '무'],
-  '유': ['신'],
-  '술': ['신', '정', '무'],
-  '해': ['임', '갑'],
+// 지장간 (地支藏干) - 지지 내부 천간 + 강도
+export const JIJI_INTERNAL_STEM: Record<string, { stem: string; strength: string }[]> = {
+  '자': [{ stem: '임', strength: '100%' }],
+  '축': [{ stem: '기', strength: '60%' }, { stem: '신', strength: '30%' }, { stem: '계', strength: '10%' }],
+  '인': [{ stem: '갑', strength: '60%' }, { stem: '병', strength: '30%' }, { stem: '무', strength: '10%' }],
+  '묘': [{ stem: '을', strength: '100%' }],
+  '진': [{ stem: '무', strength: '60%' }, { stem: '을', strength: '30%' }, { stem: '계', strength: '10%' }],
+  '사': [{ stem: '병', strength: '60%' }, { stem: '무', strength: '30%' }, { stem: '경', strength: '10%' }],
+  '오': [{ stem: '정', strength: '70%' }, { stem: '기', strength: '30%' }],
+  '미': [{ stem: '기', strength: '60%' }, { stem: '정', strength: '30%' }, { stem: '을', strength: '10%' }],
+  '신': [{ stem: '경', strength: '60%' }, { stem: '임', strength: '30%' }, { stem: '무', strength: '10%' }],
+  '유': [{ stem: '신', strength: '100%' }],
+  '술': [{ stem: '무', strength: '60%' }, { stem: '신', strength: '30%' }, { stem: '정', strength: '10%' }],
+  '해': [{ stem: '임', strength: '70%' }, { stem: '갑', strength: '30%' }],
 };
+
+// 12운성 (十二運星) - 일간 기준 지지에서의 힘 상태
+export const TWELVE_UNSEONG: Record<string, string[]> = {
+  '갑': ['해', '자', '축', '인', '묘', '진', '사', '오', '미', '신', '유', '술'],
+  '을': ['오', '사', '진', '묘', '인', '축', '자', '해', '술', '유', '신', '미'],
+  '병': ['인', '묘', '진', '사', '오', '미', '신', '유', '술', '해', '자', '축'],
+  '정': ['유', '신', '미', '오', '사', '진', '묘', '인', '축', '자', '해', '술'],
+  '무': ['인', '묘', '진', '사', '오', '미', '신', '유', '술', '해', '자', '축'],
+  '기': ['유', '신', '미', '오', '사', '진', '묘', '인', '축', '자', '해', '술'],
+  '경': ['사', '오', '미', '신', '유', '술', '해', '자', '축', '인', '묘', '진'],
+  '신': ['자', '해', '술', '유', '신', '미', '오', '사', '진', '묘', '인', '축'],
+  '임': ['신', '유', '술', '해', '자', '축', '인', '묘', '진', '사', '오', '미'],
+  '계': ['묘', '인', '축', '자', '해', '술', '유', '신', '미', '오', '사', '진'],
+};
+
+export const UNSEONG_NAMES = [
+  '장생', '목욕', '관대', '건록', '제왕', '쇠',
+  '병', '사', '묘', '절', '태', '양',
+] as const;
+
+export const UNSEONG_MEANING: Record<string, string> = {
+  '장생': '탄생, 시작',
+  '목욕': '성장, 변화',
+  '관대': '성인, 발전',
+  '건록': '독립, 전성',
+  '제왕': '정점, 권력',
+  '쇠': '쇠퇴 시작',
+  '병': '약해짐',
+  '사': '끝, 변화',
+  '묘': '저장, 잠복',
+  '절': '단절, 재생 준비',
+  '태': '잉태, 준비',
+  '양': '양육, 성장',
+};
+
+// 신살 (神煞)
+export interface Sinsal {
+  name: string;
+  hanja: string;
+  meaning: string;
+}
+
+// 역마 - 지지 기준 (년/일 지지 기준)
+export function getYeokma(branch: string): boolean {
+  const yeokmaMap: Record<string, string[]> = {
+    '인': ['신'],
+    '신': ['인'],
+    '사': ['해'],
+    '해': ['사'],
+    '자': ['묘'],
+    '묘': ['자'],
+    '축': ['진'],
+    '진': ['축'],
+    '오': ['유'],
+    '유': ['오'],
+    '미': ['술'],
+    '술': ['미'],
+  };
+  return Object.keys(yeokmaMap).includes(branch);
+}
+
+// 도화 - 지지 기준
+export function getDohwa(branch: string): boolean {
+  const dohwaBranches = ['자', '묘', '오', '유'];
+  return dohwaBranches.includes(branch);
+}
+
+// 천을귀인 - 일간 기준 지지
+export function getCheoneul(dayStem: string): string[] {
+  const map: Record<string, string[]> = {
+    '갑': ['축', '미'],
+    '을': ['자', '신'],
+    '병': ['해', '유'],
+    '정': ['유', '해'],
+    '무': ['축', '미'],
+    '기': ['자', '신'],
+    '경': ['묘', '유'],
+    '신': ['인', '오'],
+    '임': ['사', '묘'],
+    '계': ['묘', '사'],
+  };
+  return map[dayStem] || [];
+}
+
+// 화개 - 지지 기준
+export function getHwagae(branch: string): boolean {
+  const hwagaeBranches = ['사', '유', '축'];
+  return hwagaeBranches.includes(branch);
+}
 
 // 십성 (Ten Gods) - 일간 기준
 export const SIBSEONG = ['비견', '겁재', '식신', '상관', '편재', '정재', '편인', '정인', '편관', '정관'] as const;

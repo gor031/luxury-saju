@@ -4,6 +4,8 @@ import { getOhangDistribution, getDayMasterAnalysis, getDaewoonAnalysis } from '
 import { OHANG_COLOR, CHEONGAN } from '../utils/constants';
 import SajuChart from './SajuChart';
 import AiAnalysis from './AiAnalysis';
+import SinsalCard from './SinsalCard';
+import FaqSection from './FaqSection';
 import { Sparkles, Flame, Mountain, Wind, Droplets, Circle } from 'lucide-react';
 
 interface SajuResultProps {
@@ -182,6 +184,16 @@ export default function SajuResult({ result }: SajuResultProps) {
       {/* AI Analysis */}
       <motion.div variants={itemVariants}>
         <AiAnalysis result={result} />
+      </motion.div>
+
+      {/* 신살 분석 */}
+      <motion.div variants={itemVariants}>
+        <SinsalCard result={result} />
+      </motion.div>
+
+      {/* FAQ */}
+      <motion.div variants={itemVariants}>
+        <FaqSection />
       </motion.div>
 
       {/* Footer Note */}
