@@ -4,17 +4,15 @@ import type { SajuResult } from './sajuCalculator';
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 let genAI: GoogleGenerativeAI | null = null;
-let model: any = null;
 
-function getModel() {
+function getGenAI() {
   if (!API_KEY) {
-    throw new Error('VITE_GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
+    throw new Error('VITE_GEMINI_API_KEY가 설정되지 않았습니다.');
   }
   if (!genAI) {
     genAI = new GoogleGenerativeAI(API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemma-4-31b-it' });
   }
-  return model;
+  return genAI;
 }
 
 function buildSajuPrompt(result: SajuResult): string {
@@ -66,6 +64,7 @@ export interface AiAnalysisResult {
     title: string;
     content: string;
   }[];
+  usedModel: string;
 }
 
 function stripMarkdown(text: string): string {
@@ -76,7 +75,7 @@ function stripMarkdown(text: string): string {
     .replace(/_(.+?)_/g, '$1')
     .replace(/`(.+?)`/g, '$1')
     .replace(/#{1,6}\s?/g, '')
-    .replace(/^\s*[-*+]\s+/gm, '• ')
+    .replace(/^\s*[-*+]\s+/gm, '  ')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
     .replace(/\n{3,}/g, '\n\n');
@@ -86,10 +85,6 @@ function parseSections(text: string): AiAnalysisResult['sections'] {
   const cleanText = stripMarkdown(text);
   const sections: AiAnalysisResult['sections'] = [];
 
-  // 다양한 형식의 섹션 헤더 파싱
-  // 1. 1. 제목, 2. 제목 형식
-  // 2. ### 제목 형식
-  // 3. 【제목】형식
   const sectionRegex = /(?:^|\n)(?:\d+[\.\)]\s*|#{1,3}\s*|【)?\s*(성격과 기질|직업과 재물|인연과 결혼|건강과 운수|조언과 길방)\s*(?:】)?\s*(?:\n|:)?/gi;
 
   let match;
@@ -100,7 +95,6 @@ function parseSections(text: string): AiAnalysisResult['sections'] {
   }
 
   if (matches.length === 0) {
-    // 파싱 실패 시 전체 텍스트를 하나의 섹션으로
     return [{ title: 'AI 명리 해석', content: cleanText.trim() }];
   }
 
@@ -108,47 +102,60 @@ function parseSections(text: string): AiAnalysisResult['sections'] {
     const start = matches[i].index + matches[i].title.length + 2;
     const end = i < matches.length - 1 ? matches[i + 1].index : cleanText.length;
     let content = cleanText.substring(start, end).trim();
-
-    // 앞에 남은 번호/마커 제거
     content = content.replace(/^\d+[\.\)]\s*/, '').replace(/^[:：]\s*/, '');
-
-    sections.push({
-      title: matches[i].title,
-      content,
-    });
+    sections.push({ title: matches[i].title, content });
   }
 
   return sections;
 }
 
+async function tryModel(modelName: string, prompt: string): Promise<{ text: string; model: string }> {
+  const g = getGenAI();
+  const m = g.getGenerativeModel({ model: modelName });
+  const res = await m.generateContent(prompt);
+  return { text: res.response.text(), model: modelName };
+}
+
 export async function generateSajuAnalysis(result: SajuResult): Promise<AiAnalysisResult> {
-  const modelInstance = getModel();
   const prompt = buildSajuPrompt(result);
 
-  try {
-    const response = await modelInstance.generateContent(prompt);
-    const text = response.response.text();
+  // 사용자가 요청한 모델 먼저 시도
+  const preferredModels = ['gemma-4-31b-it', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  let lastError: any;
 
-    if (!text || text.trim().length === 0) {
-      throw new Error('AI가 빈 응답을 반환했습니다.');
-    }
+  for (const modelName of preferredModels) {
+    try {
+      const { text, model } = await tryModel(modelName, prompt);
 
-    return {
-      content: stripMarkdown(text),
-      sections: parseSections(text),
-    };
-  } catch (err: any) {
-    if (err.message?.includes('API key')) {
-      throw new Error('API 키가 유효하지 않습니다. 키를 확인해주세요.');
+      if (!text || text.trim().length === 0) {
+        throw new Error('AI가 빈 응답을 반환했습니다.');
+      }
+
+      return {
+        content: stripMarkdown(text),
+        sections: parseSections(text),
+        usedModel: model,
+      };
+    } catch (err: any) {
+      lastError = err;
+      const status = err.status || err.message?.match(/(\d{3})/)?.[1];
+      // 403 = 모델 접근 불가, 404 = 모델 없음 → 다음 모델 시도
+      if (status === '403' || status === '404' || err.message?.includes('not found')) {
+        continue;
+      }
+      // 다른 에러는 바로 던짐
+      break;
     }
-    if (err.message?.includes('quota')) {
-      throw new Error('API 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.');
-    }
-    if (err.message?.includes('model')) {
-      throw new Error('AI 모델을 찾을 수 없습니다. 잠시 후 다시 시도해주세요.');
-    }
-    throw err;
   }
+
+  // 모든 모델 실패
+  if (lastError?.message?.includes('API key')) {
+    throw new Error('API 키가 유효하지 않습니다. 키를 확인해주세요.');
+  }
+  if (lastError?.message?.includes('quota')) {
+    throw new Error('API 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  throw new Error('AI 해석 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
 }
 
 export function isAiAvailable(): boolean {
