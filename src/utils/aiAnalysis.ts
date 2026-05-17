@@ -98,7 +98,7 @@ function parseSections(text: string): AiAnalysisResult['sections'] {
 }
 
 export async function generateSajuAnalysis(result: SajuResult): Promise<AiAnalysisResult> {
-  const model = getGenAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = getGenAI().getGenerativeModel({ model: 'gemma-4-31b-it' });
   const response = await model.generateContent(buildSajuPrompt(result));
   const text = response.response.text();
 
