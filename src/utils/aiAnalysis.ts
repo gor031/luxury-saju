@@ -3,16 +3,9 @@ import type { SajuResult } from './sajuCalculator';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-let genAI: GoogleGenerativeAI | null = null;
-
 function getGenAI() {
-  if (!API_KEY) {
-    throw new Error('VITE_GEMINI_API_KEY가 설정되지 않았습니다.');
-  }
-  if (!genAI) {
-    genAI = new GoogleGenerativeAI(API_KEY);
-  }
-  return genAI;
+  if (!API_KEY) throw new Error('API 키가 설정되지 않았습니다.');
+  return new GoogleGenerativeAI(API_KEY);
 }
 
 function buildSajuPrompt(result: SajuResult): string {
@@ -60,11 +53,7 @@ function buildSajuPrompt(result: SajuResult): string {
 
 export interface AiAnalysisResult {
   content: string;
-  sections: {
-    title: string;
-    content: string;
-  }[];
-  usedModel: string;
+  sections: { title: string; content: string }[];
 }
 
 function stripMarkdown(text: string): string {
@@ -85,12 +74,11 @@ function parseSections(text: string): AiAnalysisResult['sections'] {
   const cleanText = stripMarkdown(text);
   const sections: AiAnalysisResult['sections'] = [];
 
-  const sectionRegex = /(?:^|\n)(?:\d+[\.\)]\s*|#{1,3}\s*|【)?\s*(성격과 기질|직업과 재물|인연과 결혼|건강과 운수|조언과 길방)\s*(?:】)?\s*(?:\n|:)?/gi;
-
+  const regex = /(?:^|\n)(?:\d+[\.\)]\s*)?\s*(성격과 기질|직업과 재물|인연과 결혼|건강과 운수|조언과 길방)\s*(?:\n|:)?/gi;
   let match;
   const matches: { index: number; title: string }[] = [];
 
-  while ((match = sectionRegex.exec(cleanText)) !== null) {
+  while ((match = regex.exec(cleanText)) !== null) {
     matches.push({ index: match.index, title: match[1] });
   }
 
@@ -109,53 +97,19 @@ function parseSections(text: string): AiAnalysisResult['sections'] {
   return sections;
 }
 
-async function tryModel(modelName: string, prompt: string): Promise<{ text: string; model: string }> {
-  const g = getGenAI();
-  const m = g.getGenerativeModel({ model: modelName });
-  const res = await m.generateContent(prompt);
-  return { text: res.response.text(), model: modelName };
-}
-
 export async function generateSajuAnalysis(result: SajuResult): Promise<AiAnalysisResult> {
-  const prompt = buildSajuPrompt(result);
+  const model = getGenAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const response = await model.generateContent(buildSajuPrompt(result));
+  const text = response.response.text();
 
-  // 사용자가 요청한 모델 먼저 시도
-  const preferredModels = ['gemma-4-31b-it', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-  let lastError: any;
-
-  for (const modelName of preferredModels) {
-    try {
-      const { text, model } = await tryModel(modelName, prompt);
-
-      if (!text || text.trim().length === 0) {
-        throw new Error('AI가 빈 응답을 반환했습니다.');
-      }
-
-      return {
-        content: stripMarkdown(text),
-        sections: parseSections(text),
-        usedModel: model,
-      };
-    } catch (err: any) {
-      lastError = err;
-      const status = err.status || err.message?.match(/(\d{3})/)?.[1];
-      // 403 = 모델 접근 불가, 404 = 모델 없음 → 다음 모델 시도
-      if (status === '403' || status === '404' || err.message?.includes('not found')) {
-        continue;
-      }
-      // 다른 에러는 바로 던짐
-      break;
-    }
+  if (!text || !text.trim()) {
+    throw new Error('AI가 빈 응답을 반환했습니다.');
   }
 
-  // 모든 모델 실패
-  if (lastError?.message?.includes('API key')) {
-    throw new Error('API 키가 유효하지 않습니다. 키를 확인해주세요.');
-  }
-  if (lastError?.message?.includes('quota')) {
-    throw new Error('API 사용량 한도를 초과했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  throw new Error('AI 해석 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  return {
+    content: stripMarkdown(text),
+    sections: parseSections(text),
+  };
 }
 
 export function isAiAvailable(): boolean {

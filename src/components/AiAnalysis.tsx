@@ -201,7 +201,7 @@ export default function AiAnalysis({ result }: AiAnalysisProps) {
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-serif font-bold text-gold-200">AI 심층 명리 해석</h3>
           <p className="text-ink-500 text-xs">
-            {analysis.usedModel} 기반 맞춤형 분석 결과
+            Google Gemini 기반 맞춤형 분석 결과
           </p>
         </div>
         <button
