@@ -3,6 +3,7 @@ import type { SajuResult } from '../utils/sajuCalculator';
 import { getOhangDistribution, getDayMasterAnalysis, getDaewoonAnalysis } from '../utils/sajuCalculator';
 import { OHANG_COLOR, CHEONGAN } from '../utils/constants';
 import SajuChart from './SajuChart';
+import AiAnalysis from './AiAnalysis';
 import { Sparkles, Flame, Mountain, Wind, Droplets, Circle } from 'lucide-react';
 
 interface SajuResultProps {
@@ -176,6 +177,11 @@ export default function SajuResult({ result }: SajuResultProps) {
             독특한 운명의 흐름을 만들어갑니다.
           </p>
         </div>
+      </motion.div>
+
+      {/* AI Analysis */}
+      <motion.div variants={itemVariants}>
+        <AiAnalysis result={result} />
       </motion.div>
 
       {/* Footer Note */}
