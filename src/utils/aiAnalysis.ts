@@ -1,11 +1,11 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import type { SajuResult } from './sajuCalculator';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-function getGenAI() {
+function getAI() {
   if (!API_KEY) throw new Error('API 키가 설정되지 않았습니다.');
-  return new GoogleGenerativeAI(API_KEY);
+  return new GoogleGenAI({ apiKey: API_KEY });
 }
 
 function buildSajuPrompt(result: SajuResult): string {
@@ -98,9 +98,15 @@ function parseSections(text: string): AiAnalysisResult['sections'] {
 }
 
 export async function generateSajuAnalysis(result: SajuResult): Promise<AiAnalysisResult> {
-  const model = getGenAI().getGenerativeModel({ model: 'gemma-4-31b-it' });
-  const response = await model.generateContent(buildSajuPrompt(result));
-  const text = response.response.text();
+  const ai = getAI();
+  const prompt = buildSajuPrompt(result);
+
+  const response = await ai.models.generateContent({
+    model: 'gemma-4-31b-it',
+    contents: prompt,
+  });
+
+  const text = response.text;
 
   if (!text || !text.trim()) {
     throw new Error('AI가 빈 응답을 반환했습니다.');
